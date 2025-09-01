@@ -31,7 +31,7 @@ RUN poetry install --only main --no-interaction --no-ansi
 COPY . .
 
 # Expose port
-EXPOSE 8000
+EXPOSE 8200
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
