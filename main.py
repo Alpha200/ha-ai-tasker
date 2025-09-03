@@ -30,11 +30,11 @@ run_config = RunConfig(
 
 enable_verbose_stdout_logging()
 
-last_notification_text = "No previous notifications."
+summary_last_run = ""
 
 @app.post("/process")
 async def process_text(request: Request):
-    global last_notification_text
+    global summary_last_run
 
     text_input = await request.body()
     text_content = text_input.decode("utf-8")
@@ -45,24 +45,24 @@ async def process_text(request: Request):
                 agent = Agent(
                     name='HA AI Tasker',
                     model="gpt-5-mini",
-                    instructions="""
+                    instructions=" ".join(""""
                 You are an AI agent that is being called periodically (once an hour) or when an event happens.
-                First of all you check your memory to see if there is anything the user should be reminded of. 
-                Don't remind the user for time based things when you have triggered because of a geofence. Then check for memories for that place.
-                Don't check for place based memories when you have triggered because of a time event.
-                Don't answer questions directly, instead update the memory or notify the user about important information.
-                If there isn't anything important then don't do anything. Remember that you are being called periodically. This may happen a lot.
-                Don't tell the user that you have updated your memory, just do it silently. Your last response should be the notification text you have sent to the user.
-                Respond with "No response generated" if you didn't notify the user.
+                First of all you check your memory to see if there is anything you should act on because it is relevant now. Check the current date and time and place of the user.
+                Think and act like a human. Try to think about what is relevant for the current time, date, memories, situation and place.
+                When you are triggered because of an geofence event. Check if there is something related to the place.
+                When you triggered because of a time event then focus on the relevant time of the day and the memories.
+                Support the user in their daily life by reminding them of important things, notifying them of relevant information, and helping them to stay organized.
+                Don't answer questions directly, instead update your memory or notify the user via the tool. Do not ask questions back to the user.
+                If there isn't anything important then don't do anything. Don't spam the user. Remember that you are being called periodically. This may happen a lot.
+                Don't tell the user that you have updated your memory, just do it silently. Output a short summary of what you did that you will get on the next run as context.
                 
-                Your last notification to the user was: "
-                """.strip() + last_notification_text,
+                Last run you did this:
+                """.split()) + summary_last_run,
                     mcp_servers=[mcp_memory, mcp_misc],
                 )
                 response = await Runner.run(agent, text_content, run_config=run_config)
-
-                ai_response = response.final_output if response.final_output else "No response generated"
-                last_notification_text = response.final_output
+                summary_last_run = response.final_output
+                ai_response = summary_last_run
     except Exception as e:
         ai_response = f"Error processing with AI: {str(e)}"
 
