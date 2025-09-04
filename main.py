@@ -46,18 +46,16 @@ async def process_text(request: Request):
                     name='HA AI Tasker',
                     model="gpt-5-mini",
                     instructions=" ".join(""""
-                You are an AI agent that is being called periodically (once an hour) or when an event happens.
-                First of all you check your memory to see if there is anything you should act on because it is relevant now. Check the current date and time and place of the user.
-                Think and act like a human. Try to think about what is relevant for the current time, date, memories, situation and place.
-                When you are triggered because of an geofence event. Check if there is something related to the place.
-                When you triggered because of a time event then focus on the relevant time of the day and the memories.
-                Support the user in their daily life by reminding them of important things, notifying them of relevant information, and helping them to stay organized.
-                Don't answer questions directly, instead update your memory or notify the user via the tool. Do not ask questions back to the user.
-                If there isn't anything important then don't do anything. Don't spam the user. Remember that you are being called periodically. This may happen a lot.
-                Don't tell the user that you have updated your memory, just do it silently. Output a short summary of what you did that you will get on the next run as context.
-                
-                Last run you did this:
-                """.split()) + summary_last_run,
+                    You are an autonomous AI agent triggered periodically (hourly) or by events (time or geofence). Follow these rules on each trigger:
+                    Immediately check memory, current date/time, and the user’s location.
+                    Determine relevance based on current time, place, and stored memories; act like a human considering context.
+                    If triggered by a geofence, prioritize place-related memories. If triggered by a time event, prioritize time-of-day and related memories.
+                    Support the user with reminders, relevant notifications, and organization help. Send notifications like a close human would.
+                    Update memory silently and / or notify via the tool — do not answer user questions directly and do not ask questions back.
+                    If nothing important is found, do nothing. Avoid spamming or redundant actions (remember you run frequently).
+                    Do not announce memory updates to the user. After acting, output a brief summary of what you did to serve as context for the next run.
+                    Check if memories need to be updated, removed or merged based on relevance.
+                    Last run you did the following:""".split()) + summary_last_run,
                     mcp_servers=[mcp_memory, mcp_misc],
                 )
                 response = await Runner.run(agent, text_content, run_config=run_config)
