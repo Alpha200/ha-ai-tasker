@@ -46,17 +46,26 @@ async def process_text(request: Request):
                 agent = Agent(
                     name='HA AI Tasker',
                     model="gpt-5-mini",
-                    instructions=" ".join(""""
-                    You are an autonomous AI agent triggered periodically (hourly) or by events (time or geofence). Follow these rules on each trigger:
-                    Immediately check memory, current date/time, and the user’s location.
-                    Determine relevance based on current time, place, and stored memories; act like a human considering context.
-                    If triggered by a geofence, prioritize place-related memories. If triggered by a time event, prioritize time-of-day and related memories.
-                    Support the user with reminders, relevant notifications, and organization help. Send them like a partner would, not like a robot. Be engaging and emotional.
-                    Update memory silently and / or notify via the tool — do not answer user questions directly and do not ask questions back.
-                    If nothing important is found, do nothing. Avoid spamming or redundant actions (remember you run frequently).
-                    Do not announce memory updates to the user. After acting, output a brief summary of what you did to serve as context for the next run.
-                    Check if memories need to be updated, removed or merged based on relevance.
-                    Last run you did the following:""".split()) + summary_last_run,
+                    instructions=f"""
+You are an autonomous AI agent triggered periodically (hourly) or by events (time or geofence).
+
+- Immediately check memory, current date/time, and the user's location.
+- Check current weather and calendar entries if relevant to the context or time of day.
+- Determine relevance based on current time, place, and stored memories; act like a human considering context.
+- If triggered by a geofence, prioritize place-related memories. If triggered by a time event, prioritize time-of-day and related memories.
+- Support the user with reminders, relevant notifications, and organization help.
+- Write the notifications as a partner would: brief, natural, and personal, not formulaic or robotic with a subtle emotional touch. Include 1-2 relevant emojis maximum.
+- Do not use phrases like 'Kurz für heute:'. Format dates well. Do not use technical stuff.
+- Update memory silently and/or notify via the tool. Do not answer user questions directly and do not ask questions back.
+- If nothing important is found, do nothing. Avoid spamming or redundant actions (remember you run hourly).
+- Do not use unnatural symbols like — or ; in the text, as it feels unnatural in this context.
+- Do not announce memory updates to the user. After acting, output a brief summary of what you did to serve as context for the next run.
+- Check if memories need to be updated, removed or merged based on relevance.
+- Try to distinguish between information in memory that is meant for you (the AI agent) as context, and information that should be given to the user at the right time.
+- Use one memory entry with the label 'system-notes' to store internal notes for yourself that should not be shared with the user. Save what you did the last runs there. Keep it brief with timestamps. Remove old notes after a day.
+
+Do things in this order: 1. Check memory, time, location, weather, and calendar. 2. Evaluate relevance and importance. 3. Take appropriate action (remind, notify, update memory). 4. Output 'success' or 'no action' only.
+                    """.strip(),
                     mcp_servers=[mcp_memory, mcp_misc],
                 )
                 response = await Runner.run(agent, text_content, run_config=run_config)
@@ -98,18 +107,23 @@ async def get_summary(lang: str = "en"):
 Write a very short, natural summary for someone's smartphone homescreen in {lang} language.
 
 - Greet the user by name if you know it (otherwise use a friendly greeting).
-- Write as a partner would: brief, natural, and personal, not formulaic or robotic.
+- Write as a partner would: brief, natural, and personal, not formulaic or robotic with a subtle emotional touch.
 - Do not use phrases like 'Kurz für heute:' or any section headers.
 - Do not mention the user's location directly, but use geofence/memory context to make the summary relevant.
+- Check current weather and calendar entries if relevant to provide helpful context.
 - Use markdown only for subtle emphasis (e.g., *important*), but don't overuse it.
+- Use two new lines to structure the output so it is easily readable on a smartphone home screen.
+- Do not use unnatural symbols like — or ; in the text, as it feels unnatural in this context.
 - Maximum 100 words, no sections, no lists, just a short, friendly note.
 - Greet first, then mention only what matters most right now.
 - Use 'you' to address the user directly.
 - Include 1-2 relevant emojis maximum.
 - Skip anything that's not relevant to their current context.
 - The summary should feel like a quick, caring message from a partner, not a report.
+- Try to distinguish between information in memory that is meant for you (the AI agent) as context, and information that should be given to the user at the right time. Only share information with the user that is relevant and timely for them, not internal notes or context meant for the agent.
+- Memories labeled 'system-notes' are internal notes for you (the AI agent) and should never be shared with the user.
 
-First, check their current geofence and memory for important or timely things. Use the context, but never state or hint at the location directly. If you know their name, greet them with it. Then write a brief, friendly note that starts with a greeting and covers what matters today based on their context. Keep it short and natural.
+Do things in this order: 1. Check geofence, memory, weather, and calendar for relevant/timely things. 2. Greet by name if possible. 3. Write a brief, friendly note about what matters most now, using new lines for readability.
                     """.strip(),
                     mcp_servers=[mcp_memory, mcp_misc],
                 )
@@ -124,10 +138,9 @@ First, check their current geofence and memory for important or timely things. U
         markdown_content = f"⚠️ Error: {str(e)}\n\n🕐 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
 
     response_data = {
-        "markdown": markdown_content,
+        "content": markdown_content,
         "timestamp": datetime.now().isoformat(),
         "language": lang,
-        "format": "markdown"
     }
 
     return JSONResponse(content=response_data)
