@@ -31,12 +31,8 @@ run_config = RunConfig(
 
 enable_verbose_stdout_logging()
 
-summary_last_run = ""
-
 @app.post("/process")
 async def process_text(request: Request):
-    global summary_last_run
-
     text_input = await request.body()
     text_content = text_input.decode("utf-8")
 
@@ -70,8 +66,7 @@ Do things in this order: 1. Check memory, time, location, weather, and calendar.
                     mcp_servers=[mcp_memory, mcp_misc],
                 )
                 response = await Runner.run(agent, text_content, run_config=run_config)
-                summary_last_run = response.final_output
-                ai_response = summary_last_run
+                ai_response = response.final_output
     except Exception as e:
         ai_response = f"Error processing with AI: {str(e)}"
 
