@@ -4,14 +4,52 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 import uvicorn
 import os
+import asyncio
 from datetime import datetime
+from contextlib import asynccontextmanager
 
-
+# Environment variables - read all at once
+MATRIX_HOMESERVER_URL = os.getenv("MATRIX_HOMESERVER_URL")
+MATRIX_USERNAME = os.getenv("MATRIX_USERNAME")
+MATRIX_PASSWORD = os.getenv("MATRIX_PASSWORD")
+MATRIX_ROOM_ID = os.getenv("MATRIX_ROOM_ID")
 MCP_SERVER_URL_MEMORY = os.getenv("MCP_SERVER_URL_MEMORY", "http://localhost:8300/sse")
 MCP_SERVER_URL_MISC = os.getenv("MCP_SERVER_URL_MISC", "http://localhost:8100/sse")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-app = FastAPI(title="HA AI Tasker", version="0.1.0")
+# Global variable to store the Matrix bot instance
+matrix_bot = None
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Manage the lifespan of the FastAPI app and Matrix bot"""
+    global matrix_bot
+
+    # Startup: Start Matrix bot if environment variables are set
+    if all([MATRIX_HOMESERVER_URL, MATRIX_USERNAME, MATRIX_PASSWORD, MATRIX_ROOM_ID]):
+        from matrix_bot import MatrixChatBot
+        matrix_bot = MatrixChatBot(
+            homeserver=MATRIX_HOMESERVER_URL,
+            user_id=MATRIX_USERNAME,
+            password=MATRIX_PASSWORD,
+            room_id=MATRIX_ROOM_ID,
+            mcp_memory_url=MCP_SERVER_URL_MEMORY
+        )
+        # Start Matrix bot in background task
+        asyncio.create_task(matrix_bot.start())
+        print("Matrix bot started")
+    else:
+        print("Matrix bot not started - missing environment variables")
+
+    yield
+
+    # Shutdown: Stop Matrix bot
+    if matrix_bot:
+        await matrix_bot.stop()
+        print("Matrix bot stopped")
+
+
+app = FastAPI(title="HA AI Tasker", version="0.1.0", lifespan=lifespan)
 
 mcp_server_memory = MCPServerSse(
     name="memory",
