@@ -1,3 +1,5 @@
+from typing import Optional
+
 from agents import Agent, Runner, RunConfig, enable_verbose_stdout_logging
 from agents.mcp import MCPServerSse
 from fastapi import FastAPI, Request
@@ -8,17 +10,19 @@ import asyncio
 from datetime import datetime
 from contextlib import asynccontextmanager
 
+from matrix_bot import MatrixChatBot
+
 # Environment variables - read all at once
 MATRIX_HOMESERVER_URL = os.getenv("MATRIX_HOMESERVER_URL")
 MATRIX_USERNAME = os.getenv("MATRIX_USERNAME")
 MATRIX_PASSWORD = os.getenv("MATRIX_PASSWORD")
 MATRIX_ROOM_ID = os.getenv("MATRIX_ROOM_ID")
+SYSTEM_USERNAME = os.getenv("SYSTEM_USERNAME")  # Username to identify as "system" in conversation context
 MCP_SERVER_URL_MEMORY = os.getenv("MCP_SERVER_URL_MEMORY", "http://localhost:8300/sse")
 MCP_SERVER_URL_MISC = os.getenv("MCP_SERVER_URL_MISC", "http://localhost:8100/sse")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Global variable to store the Matrix bot instance
-matrix_bot = None
+matrix_bot : Optional[MatrixChatBot] = None
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -33,7 +37,8 @@ async def lifespan(_: FastAPI):
             user_id=MATRIX_USERNAME,
             password=MATRIX_PASSWORD,
             room_id=MATRIX_ROOM_ID,
-            mcp_memory_url=MCP_SERVER_URL_MEMORY
+            mcp_memory_url=MCP_SERVER_URL_MEMORY,
+            system_username=SYSTEM_USERNAME
         )
         # Start Matrix bot in background task
         asyncio.create_task(matrix_bot.start())
@@ -50,6 +55,23 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="HA AI Tasker", version="0.1.0", lifespan=lifespan)
+
+def get_recent_conversation_context() -> str:
+    """Get recent conversation history from Matrix bot for context"""
+    global matrix_bot
+    if not matrix_bot:
+        return "No recent conversation available."
+
+    # Use the generalized method from matrix_bot with timestamps and 5 messages
+    context = matrix_bot.get_conversation_context(
+        max_messages=5,
+        include_timestamps=True
+    )
+
+    if context is None:
+        return "No recent conversation available."
+
+    return context
 
 mcp_server_memory = MCPServerSse(
     name="memory",
@@ -74,6 +96,9 @@ async def process_text(request: Request):
     text_input = await request.body()
     text_content = text_input.decode("utf-8")
 
+    # Get recent conversation context
+    conversation_context = get_recent_conversation_context()
+
     try:
         async with mcp_server_memory as mcp_memory:
             async with mcp_server_misc as mcp_misc:
@@ -85,7 +110,8 @@ You are an autonomous AI agent triggered periodically (hourly) or by events (tim
 
 - Immediately check memory, current date/time, and the user's location.
 - Check current weather and calendar entries if relevant to the context or time of day.
-- Determine relevance based on current time, place, and stored memories; act like a human considering context.
+- Consider recent conversation context from chat to provide more relevant and timely notifications. Your notifications will be sent to the user via chat.
+- Determine relevance based on current time, place, stored memories, and recent conversations; act like a human considering context.
 - If triggered by a geofence, prioritize place-related memories. If triggered by a time event, prioritize time-of-day and related memories.
 - Support the user with reminders, relevant notifications, and organization help.
 - Write the notifications as a partner would: brief, natural, and personal, not formulaic or robotic with a subtle emotional touch. Include 1-2 relevant emojis maximum.
@@ -99,11 +125,14 @@ You are an autonomous AI agent triggered periodically (hourly) or by events (tim
 - Check if memories need to be updated, removed or merged based on relevance and delete old system notes after 12 hours.
 - When storing relevance dates in memories, always use ISO format dates (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS), not relative dates like "tomorrow" or "next week".
 
-Do things in this order: 1. Check memory, time, location, weather, and calendar. 2. Evaluate relevance and importance. 3. Take appropriate action (remind, notify, update memory, remove old system notes). 4. Output 'success' or 'no action' only.
+Do things in this order: 1. Check memory, time, location, weather, and calendar. 2. Review recent conversation context. 3. Evaluate relevance and importance. 4. Take appropriate action (remind, notify, update memory, remove old system notes). 5. Output 'success' or 'no action' only.
                     """.strip(),
                     mcp_servers=[mcp_memory, mcp_misc],
                 )
-                response = await Runner.run(agent, text_content, run_config=run_config)
+
+                # Include conversation context in the prompt
+                enhanced_prompt = f"{text_content}\n\n{conversation_context}"
+                response = await Runner.run(agent, enhanced_prompt, run_config=run_config)
                 ai_response = response.final_output
     except Exception as e:
         ai_response = f"Error processing with AI: {str(e)}"

@@ -2,27 +2,27 @@ import asyncio
 from nio import AsyncClient, MatrixRoom, RoomMessageText, LoginResponse, SyncResponse
 from agents import Agent, Runner, RunConfig
 from agents.mcp import MCPServerSse
-import os
 from datetime import datetime
-from collections import defaultdict, deque
+from collections import deque
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class MatrixChatBot:
-    def __init__(self, homeserver: str, user_id: str, password: str, room_id: str, mcp_memory_url: str):
+    def __init__(self, homeserver: str, user_id: str, password: str, room_id: str, mcp_memory_url: str, system_username: str = None):
         self.homeserver = homeserver
         self.user_id = user_id
         self.password = password
         self.room_id = room_id
+        self.system_username = system_username
         self.client = AsyncClient(self.homeserver, self.user_id)
 
         # Store the start time to filter out old messages
         self.start_time = datetime.now()
 
-        # Store conversation history per room (last 10 messages)
-        self.conversation_history = defaultdict(lambda: deque(maxlen=10))
+        # Store conversation history (last 10 messages)
+        self.conversation_history = deque(maxlen=10)
 
         # MCP server setup with error handling
         try:
@@ -67,7 +67,7 @@ class MatrixChatBot:
             logger.info(f"Received message from {event.sender} in {room.room_id}: {event.body}")
 
             # Add message to history (including our own messages from other apps)
-            self.conversation_history[room.room_id].append({
+            self.conversation_history.append({
                 "sender": event.sender,
                 "message": event.body,
                 "timestamp": datetime.now().isoformat()
@@ -78,7 +78,7 @@ class MatrixChatBot:
                 return
 
             # Build conversation context
-            history_text = self._build_conversation_context(room.room_id)
+            history_text = self._build_conversation_context()
 
             try:
                 # Process with AI - only if MCP is available
@@ -149,19 +149,47 @@ Do things in this order: 1. Check memory for relevant context about the user. 2.
             except Exception as send_error:
                 logger.error(f"Failed to send error message: {send_error}")
 
-    def _build_conversation_context(self, room_id: str) -> str:
-        """Build conversation context from recent messages"""
-        history = self.conversation_history[room_id]
-        if not history:
-            return "No previous conversation history."
+    def get_conversation_context(self, max_messages: int = 10, include_timestamps: bool = False) -> str | None:
+        """Build conversation context from recent messages
 
+        Args:
+            max_messages: Maximum number of recent messages to include
+            include_timestamps: Whether to include timestamps in the format [YYYY-MM-DD HH:MM]
+
+        Returns:
+            Conversation context string or None if no history available
+        """
+        if not self.conversation_history:
+            return None
+
+        # Build conversation context (last N messages)
+        recent_messages = list(self.conversation_history)[-max_messages:] if len(self.conversation_history) > max_messages else list(self.conversation_history)
         context_lines = ["Recent conversation history:"]
-        for msg in history:
-            sender_name = msg["sender"].split(":")[0].replace("@", "")
-            context_lines.append(f"{sender_name}: {msg['message']}")
 
-        context_lines.append("\nPlease respond to the most recent message considering this conversation context.")
+        for msg in recent_messages:
+            sender_name = msg["sender"].split(":")[0].replace("@", "")
+
+            # Determine if sender is system or use real username
+            if self.system_username and sender_name == self.system_username:
+                role = "system"
+            else:
+                role = sender_name
+
+            if include_timestamps:
+                # Parse timestamp and format as date
+                msg_time = datetime.fromisoformat(msg["timestamp"]).strftime("%Y-%m-%d %H:%M")
+                context_lines.append(f"[{msg_time}] {role}: {msg['message']}")
+            else:
+                context_lines.append(f"{role}: {msg['message']}")
+
         return "\n".join(context_lines)
+
+    def _build_conversation_context(self) -> str:
+        """Build conversation context from recent messages (legacy method for internal use)"""
+        context = self.get_conversation_context(max_messages=10, include_timestamps=False)
+        if context is None:
+            return "No previous conversation history."
+        return context + "\n\nPlease respond to the most recent message considering this conversation context."
 
     async def login_callback(self, response: LoginResponse):
         if isinstance(response, LoginResponse):
