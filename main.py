@@ -109,7 +109,7 @@ async def process_text(request: Request):
                     model="gpt-5-mini",
                     model_settings=ModelSettings(
                         reasoning=Reasoning(
-                            effort="high"
+                            effort="medium"
                         ),
                     ),
                     instructions=f"""
@@ -140,7 +140,7 @@ Do things in this order: 1. Check memory, time, location, weather, and calendar.
 
                 # Include conversation context in the prompt
                 enhanced_prompt = f"{text_content}\n\n{conversation_context}"
-                response = await Runner.run(agent, enhanced_prompt, run_config=run_config)
+                response = await Runner.run(agent, enhanced_prompt, run_config=run_config, max_turns=15)
                 ai_response = response.final_output
     except Exception as e:
         ai_response = f"Error processing with AI: {str(e)}"
