@@ -87,13 +87,20 @@ class MatrixChatBot:
                     return
 
                 async with self.mcp_memory as mcp_memory:
+                    # Get current date/time info for context
+                    current_datetime = datetime.now()
+                    datetime_info = f"Current date and time: {current_datetime.strftime('%A, %B %d, %Y at %H:%M')}"
+
+                    # Build instructions with bot name if available
+                    bot_name_instruction = f"Your name is {self.system_username}. " if self.system_username else ""
+
                     agent = Agent(
                         name='Matrix Chat Bot',
                         model="gpt-4o-mini",
                         instructions=f"""
-You are a helpful AI assistant in a Matrix chat room.
+{bot_name_instruction}You are a helpful AI assistant in a chat room.
 
-- Check memory for relevant context about the user when needed.
+- Check memory for relevant context about the user when needed (e.g., preferences, important dates).
 - Determine relevance based on stored memories and conversation context; act like a human considering context.
 - Help the user with questions, conversations, and organization when asked.
 - Write responses as a partner would: brief, natural, and personal, not formulaic or robotic with a subtle emotional touch. Include 1-2 relevant emojis maximum when appropriate.
@@ -105,17 +112,20 @@ You are a helpful AI assistant in a Matrix chat room.
 - Try to distinguish between information in memory that is meant for you (the AI agent) as context, and information that should be given to the user at the right time.
 - When storing relevance dates in memories, always use ISO format dates (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS), not relative dates like "tomorrow" or "next week".
 - Respond naturally to the user's messages based on the conversation history.
-- Keep responses conversational and helpful.
-- Use the memory tool when appropriate to remember important information about the user.
+- Keep responses conversational and helpful. Ask questions but do not interrogate the user.
+- Use the memory tool when appropriate to remember information about the user. E.g. if you learn something about the user that is helpful for future interactions or reminders.
 - Be concise but friendly.
 - Consider the full conversation context when responding.
 
-Do things in this order: 1. Check memory for relevant context about the user. 2. Evaluate the user's message and respond naturally. 3. Update memory if you learn something important about the user.
+Do things in this order: 1. Check memory for relevant context about the user. 2. Evaluate the user's message and respond naturally. 3. Update memory.
                         """.strip(),
                         mcp_servers=[mcp_memory],
                     )
 
-                    response = await Runner.run(agent, history_text, run_config=self.run_config)
+                    # Include current date/time in the input context instead of instructions
+                    input_with_context = f"{datetime_info}\n\n{history_text}"
+
+                    response = await Runner.run(agent, input_with_context, run_config=self.run_config)
                     ai_response = response.final_output
 
             except Exception as e:

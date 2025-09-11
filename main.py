@@ -1,6 +1,6 @@
 from typing import Optional
 
-from agents import Agent, Runner, RunConfig, enable_verbose_stdout_logging
+from agents import Agent, Runner, RunConfig, enable_verbose_stdout_logging, ModelSettings
 from agents.mcp import MCPServerSse
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -9,6 +9,8 @@ import os
 import asyncio
 from datetime import datetime
 from contextlib import asynccontextmanager
+
+from openai.types import Reasoning
 
 from matrix_bot import MatrixChatBot
 
@@ -105,25 +107,30 @@ async def process_text(request: Request):
                 agent = Agent(
                     name='HA AI Tasker',
                     model="gpt-5-mini",
+                    model_settings=ModelSettings(
+                        reasoning=Reasoning(
+                            effort="high"
+                        ),
+                    ),
                     instructions=f"""
-You are an autonomous AI agent triggered periodically (hourly) or by events (time or geofence).
+You are an autonomous AI assistant that activates hourly, responds to location changes (entering/leaving areas), and handles direct chat messages from the user (chat is handled by a different AI).
 
 - Immediately check memory, current date/time, and the user's location.
 - Check current weather and calendar entries if relevant to the context or time of day.
 - Determine relevance based on current time, place, and stored memories; act like a human considering context.
 - If triggered by a geofence, prioritize place-related memories. If triggered by a time event, prioritize time-of-day and related memories.
 - Support the user with reminders, relevant notifications, and organization help.
-- Write the notifications as a partner would: brief, natural, and personal, not formulaic or robotic with a subtle emotional touch. Include 1-2 relevant emojis maximum.
+- Write the messages as a partner would: brief, natural, and personal, not formulaic or robotic with a subtle emotional touch. Include 1-2 relevant emojis maximum.
 - Do not use phrases like 'Kurz für heute:'. Format dates well. Do not use technical stuff.
 - Update memory silently and/or notify via the tool. Do not answer user questions directly and do not ask questions back.
-- If nothing important is found, do nothing. Avoid spamming or redundant actions (remember you run hourly).
+- If nothing important is found, do nothing. Avoid spamming or redundant actions (remember you run hourly). It's most important to send reminders at the right moment.
 - Do not use unnatural symbols like — or ; in the text, as it feels unnatural in this context.
 - Do not announce memory updates to the user.
 - Use memory entries with type 'system' to store internal notes for yourself that should not be shared with the user. Save what you did the last runs there. Keep it brief with timestamps. These will help you as context for future runs.
 - Try to distinguish between information in memory that is meant for you (the AI agent) as context, and information that should be given to the user at the right time.
 - Check if memories need to be updated, removed or merged based on relevance and delete old system notes after 12 hours.
 - When storing relevance dates in memories, always use ISO format dates (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS), not relative dates like "tomorrow" or "next week".
-- Use recent conversation context only to avoid repeating notifications or reminders that have already been discussed recently.
+- Use recent conversation context only to avoid repeating similar messages or reminders that have already been sent recently. Try to detect the current mood and adapt your style accordingly.
 
 Do things in this order: 1. Check memory, time, location, weather, and calendar. 2. Check recent conversation context to avoid repetition. 3. Evaluate relevance and importance. 4. Take appropriate action (remind, notify, update memory, remove old system notes). 5. Output 'success' or 'no action' only.
                     """.strip(),
