@@ -1,6 +1,7 @@
 from typing import Optional
+import logging
 
-from agents import Agent, Runner, RunConfig, enable_verbose_stdout_logging, ModelSettings
+from agents import Agent, Runner, RunConfig, ModelSettings
 from agents.mcp import MCPServerSse
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -10,10 +11,10 @@ import asyncio
 from datetime import datetime
 from contextlib import asynccontextmanager
 
-from openai import max_retries
 from openai.types import Reasoning
 
 from matrix_bot import MatrixChatBot
+from agent_hooks import CustomAgentHooks
 
 # Environment variables - read all at once
 MATRIX_HOMESERVER_URL = os.getenv("MATRIX_HOMESERVER_URL")
@@ -26,6 +27,10 @@ MCP_SERVER_URL_MISC = os.getenv("MCP_SERVER_URL_MISC", "http://localhost:8100/ss
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 matrix_bot : Optional[MatrixChatBot] = None
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -92,8 +97,6 @@ run_config = RunConfig(
     tracing_disabled=True,
 )
 
-enable_verbose_stdout_logging()
-
 @app.post("/process")
 async def process_text(request: Request):
     text_input = await request.body()
@@ -130,7 +133,7 @@ DATA YOU MAY RECEIVE VIA PROMPT AND TOOLS
 
 MEMORY POLICY
 - `system` type = internal notes; never surface
-- Keep only actionable, future-relevant, or recurring items
+- Keep only actionable, future-relevant, recurring items, habits and instructions
 - Delete: past events > 4h old, completed/obsolete tasks, only keep most recent 6 `system` notes
 - Merge duplicates (same intent & date) by updating the oldest one and removing the newest
 - Always use absolute times in ISO (`YYYY-MM-DD` or `YYYY-MM-DDTHH:MM:SS`). Never use relative dates like "tomorrow" or "next week"
@@ -180,6 +183,7 @@ ENHANCEMENTS
 - These instructions may be enhanced by additional context from your memory and recent conversations
                     """.strip(),
                     mcp_servers=[mcp_memory, mcp_misc],
+                    hooks=CustomAgentHooks(),
                 )
 
                 # Include conversation context in the prompt
