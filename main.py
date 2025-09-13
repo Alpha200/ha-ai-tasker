@@ -21,7 +21,8 @@ MATRIX_HOMESERVER_URL = os.getenv("MATRIX_HOMESERVER_URL")
 MATRIX_USERNAME = os.getenv("MATRIX_USERNAME")
 MATRIX_PASSWORD = os.getenv("MATRIX_PASSWORD")
 MATRIX_ROOM_ID = os.getenv("MATRIX_ROOM_ID")
-SYSTEM_USERNAME = os.getenv("SYSTEM_USERNAME")  # Username to identify as "system" in conversation context
+SYSTEM_USERNAME = os.getenv("SYSTEM_USERNAME")
+USER_LANGUAGE = os.getenv("USER_LANGUAGE", "en")
 MCP_SERVER_URL_MEMORY = os.getenv("MCP_SERVER_URL_MEMORY", "http://localhost:8300/sse")
 MCP_SERVER_URL_MISC = os.getenv("MCP_SERVER_URL_MISC", "http://localhost:8100/sse")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -161,6 +162,7 @@ STYLE (when sending a user-visible message)
 - Never expose internal reasoning or `system` notes
 - Avoid repetition of same wording used recently
 - In user interactions, format dates/times in natural language (e.g., "today at 3 PM", "next week") but be precise
+- Always communicate in the user's preferred language: {USER_LANGUAGE}
 
 ACTION ALGORITHM
 
