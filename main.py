@@ -176,8 +176,9 @@ ACTION ALGORITHM
    - `no action` if nothing met relevance threshold
 
 CONSTRAINTS
-- Never echo raw memory content verbatim if marked internal or clearly contextual only.
-- Do not fabricate data; if required data absent, skip rather than guess.
+- Never echo raw memory content verbatim if marked internal or clearly contextual only
+- Do not fabricate data; if required data absent, skip rather than guess
+- If you want to interact with the user, you have to use the notify_user tool. Do not respond directly in this output
 
 ENHANCEMENTS
 - These instructions may be enhanced by additional context from your memory and recent conversations
